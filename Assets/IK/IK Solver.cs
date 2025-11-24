@@ -36,8 +36,10 @@ public class IKSolver : MonoBehaviour
 
         //Perform 2D rotation
         shoulder.LookAt(end);
-        Vector3 axis1 = Vector3.Cross((end.position - shoulder.position).normalized, shoulder.right).normalized;
-        shoulder.Rotate(axis1, Mathf.Abs(Mathf.Rad2Deg * theta));
+        //Vector3.up is the pole vector here
+        Vector3 axis1 = Vector3.Cross((end.position - shoulder.position).normalized, Vector3.up).normalized;
+        //MUST rotate in world space, otherwise LookAt messes everything up since the calculations are done before that (and other things?)
+        shoulder.Rotate(axis1, Mathf.Abs(Mathf.Rad2Deg * theta), Space.World);
 
         elbow.transform.position = shoulder.transform.position + (shoulder.forward * r1);
         elbow.LookAt(end);
