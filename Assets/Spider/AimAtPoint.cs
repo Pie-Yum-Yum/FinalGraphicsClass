@@ -30,7 +30,7 @@ public class AimAtPoint : MonoBehaviour
 
     Vector3[] footPositions;
     Vector3[] footVelocities;
-    Transform[] footMarkers;
+    [SerializeField] Transform[] footMarkers = new Transform[6];
     // stepping state
     bool[] isStepping;
     Vector3[] stepStarts;
@@ -69,7 +69,7 @@ public class AimAtPoint : MonoBehaviour
 
         footPositions = new Vector3[totalLegs];
         footVelocities = new Vector3[totalLegs];
-        footMarkers = new Transform[totalLegs];
+        //footMarkers = new Transform[totalLegs];
         // stepping arrays
         isStepping = new bool[totalLegs];
         stepStarts = new Vector3[totalLegs];
@@ -89,8 +89,9 @@ public class AimAtPoint : MonoBehaviour
 
             if (footPrefab != null)
             {
-                GameObject go = Instantiate(footPrefab, desired, Quaternion.identity, transform);
-                footMarkers[i] = go.transform;
+                //GameObject go = Instantiate(footPrefab, desired, Quaternion.identity, transform);
+                //go.name = "aim" + i;
+                //footMarkers[i] = go.transform;
             }
         }
     }

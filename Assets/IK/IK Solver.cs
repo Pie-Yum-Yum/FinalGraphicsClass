@@ -2,30 +2,33 @@ using UnityEngine;
 
 public class IKSolver : MonoBehaviour
 {
-    [SerializeField] Transform shoulder, bone1, elbow, bone2, end;
-    Vector3 storedEndPos;
+    [SerializeField] Transform shoulder, bone1, elbow, bone2;
+    [SerializeField] float r1, r2;
+    [SerializeField] Transform beginTran, endTran;
 
     void Update()
     {
-        if (end.position != storedEndPos)
-        {
+        //if (end.position != storedEndPos)
+        //{
             doIK();
-            storedEndPos = end.position;
-        }
+            //storedEndPos = end.position;
+        //}
     }
 
     public void doIK()
     {
         //Initial variables
-        float d = Vector3.Distance(shoulder.position, end.position);
-        float r1 = bone1.localScale.z, r2 = bone2.localScale.z;
+        float d = Vector3.Distance(beginTran.position, endTran.position);
+
+        //Move shoulder to position
+        shoulder.position = beginTran.position;
 
         //Check for endpoint out of range
         if(d >= r1 + r2)
         {
-            shoulder.LookAt(end);
-            elbow.transform.position = shoulder.transform.position + (shoulder.forward * r1);
-            elbow.LookAt(end);
+            shoulder.LookAt(endTran.position);
+            elbow.transform.position = beginTran.position + (shoulder.forward * r1);
+            elbow.LookAt(endTran.position);
             return;
         }
 
@@ -35,13 +38,13 @@ public class IKSolver : MonoBehaviour
         float theta = Mathf.Acos(fracNum / fracDen);
 
         //Perform 2D rotation
-        shoulder.LookAt(end);
+        shoulder.LookAt(endTran.position);
         //Vector3.up is the pole vector here
-        Vector3 axis1 = Vector3.Cross((end.position - shoulder.position).normalized, Vector3.up).normalized;
+        Vector3 axis1 = Vector3.Cross((endTran.position - beginTran.position).normalized, Vector3.up).normalized;
         //MUST rotate in world space, otherwise LookAt messes everything up since the calculations are done before that (and other things?)
         shoulder.Rotate(axis1, Mathf.Abs(Mathf.Rad2Deg * theta), Space.World);
 
-        elbow.transform.position = shoulder.transform.position + (shoulder.forward * r1);
-        elbow.LookAt(end);
+        elbow.transform.position = beginTran.position + (shoulder.forward * r1);
+        elbow.LookAt(endTran);
     }
 }
