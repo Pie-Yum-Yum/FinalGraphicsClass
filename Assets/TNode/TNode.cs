@@ -5,30 +5,37 @@ using UnityEngine.SocialPlatforms;
 public class TNode : MonoBehaviour
 {
     public TNode parent;
-    public List<TNode> children = new List<TNode>();
-    Matrix4x4 m = Matrix4x4.identity;
+    //public List<TNode> children = new List<TNode>();
+    Quaternion localR;
 
-    [SerializeField] Vector3 localPosition;
+    [SerializeField] Vector3 localT, localS =  Vector3.one;
     [SerializeField] BoxCollider col;
 
     void Update()
     {
-        SetLocalPosition();
         if(col) col.center = GetWorldPosition();
 
-        if(GetComponent<Renderer>()) GetComponent<Renderer>().material.SetMatrix("MyTRSMatrix", GetWorldMatrix());
+        if(GetComponent<Renderer>())
+        {
+            GetComponent<Renderer>().material.SetMatrix("MyTRSMatrix", GetWorldMatrix());
+        }
     }
 
     public Matrix4x4 GetWorldMatrix()
     {
         if(parent != null)
         {
-            return parent.GetWorldMatrix() * m;
+            return parent.GetWorldMatrix() * GetLocalMatrix();
         }
         else
         {
-            return m;
+            return GetLocalMatrix();
         }
+    }
+
+    Matrix4x4 GetLocalMatrix()
+    {
+        return Matrix4x4.Translate(localT) * Matrix4x4.Rotate(localR) * Matrix4x4.Scale(localS);
     }
 
     public Vector3 GetRight()
@@ -48,14 +55,7 @@ public class TNode : MonoBehaviour
 
     public Vector3 GetLocalPosition()
     {
-        return localPosition;
-    }
-
-    void SetLocalPosition()
-    {
-        m.m03 = localPosition.x;
-        m.m13 = localPosition.y;
-        m.m23 = localPosition.z;
+        return localT;
     }
 
     public Vector3 GetWorldPosition()
@@ -72,19 +72,36 @@ public class TNode : MonoBehaviour
 
     public void Translate(Vector3 translation)
     {
-        localPosition.x += translation.x;
-        localPosition.y += translation.y;
-        localPosition.z += translation.z;
-        SetLocalPosition();
+        localT.x += translation.x;
+        localT.y += translation.y;
+        localT.z += translation.z;
     }
 
-    public void Rotate(Quaternion q)
+    public void SetRotation(Quaternion q)
     {
-        m *= Matrix4x4.Rotate(q);
+        localR = q;
+
+    }
+
+    public void RotateLocal(Quaternion q)
+    {
+        localR = localR * q;
+    }
+
+    public void RotateWorld(Quaternion q)
+    {
+        localR = q * localR;
     }
 
     public Quaternion GetRotation()
     {
         return Quaternion.LookRotation(GetForward(), GetUp());
+    }
+
+    public void LookAt(Vector3 position)
+    {
+        Vector3 forward = position - GetWorldPosition();
+        Quaternion q = Quaternion.LookRotation(forward, Vector3.up);
+        SetRotation(q);
     }
 }

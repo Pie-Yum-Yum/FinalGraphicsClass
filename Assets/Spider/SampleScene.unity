@@ -5484,7 +5484,7 @@ MonoBehaviour:
   - {fileID: 2036434339}
   - {fileID: 87928625}
   - {fileID: 1229063325}
-  moveSpeed: 150
+  moveSpeed: 500
   positionSmoothTime: 0.3
   rotationSpeed: 25
   aimPointSmoothTime: 0.08
