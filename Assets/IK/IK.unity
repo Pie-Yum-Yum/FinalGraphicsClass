@@ -840,6 +840,7 @@ MonoBehaviour:
   r2: 4
   beginTran: {fileID: 225722179}
   endTran: {fileID: 21520738}
+  upReference: {fileID: 0}
 --- !u!1 &1362712184
 GameObject:
   m_ObjectHideFlags: 0
@@ -1550,6 +1551,7 @@ MonoBehaviour:
   r2: 4
   beginTran: {fileID: 1374123664}
   endTran: {fileID: 1605533347}
+  upReference: {fileID: 1374123664}
 --- !u!1 &2012571280
 GameObject:
   m_ObjectHideFlags: 0
