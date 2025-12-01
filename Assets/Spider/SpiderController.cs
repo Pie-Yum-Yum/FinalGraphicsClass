@@ -121,13 +121,12 @@ public class SpiderController : MonoBehaviour
             }
         }
 
-        // Read WASD / arrow keys using the old input axes (works in most projects)
+        
         float h = Input.GetAxisRaw("Horizontal");
         float v = Input.GetAxisRaw("Vertical");
         Vector3 input = new Vector3(h, 0f, v);
         if (input.sqrMagnitude > 1f) input.Normalize();
 
-        // desired movement in world space (body-forward movement)
         Vector3 desiredMove = transform.TransformDirection(input) * moveSpeed;
         Vector3 targetPos = transform.position + desiredMove * Time.deltaTime;
 
@@ -153,6 +152,10 @@ public class SpiderController : MonoBehaviour
         }
 
         // Smoothly move the body position in XZ
+
+
+
+
         Vector3 targetPosXZ = new Vector3(targetPos.x, transform.position.y, targetPos.z);
         Vector3 desiredXZ = Vector3.SmoothDamp(transform.position, targetPosXZ, ref bodyVelocity, positionSmoothTime);
 
