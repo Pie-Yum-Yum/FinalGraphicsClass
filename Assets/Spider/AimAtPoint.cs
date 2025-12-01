@@ -22,6 +22,13 @@ public class AimAtPoint : MonoBehaviour
     public float stepHeight = 0.15f;
     [Tooltip("Speed of the step (larger = faster)")]
     public float stepSpeed = 4f;
+    [Tooltip("Gait cycle frequency in cycles per second. Used to phase legs so they step in groups.")]
+    public float gaitCycleFrequency = 1f;
+    [Tooltip("Fraction of the gait cycle during which a leg is allowed to start a step (0-1)")]
+    [Range(0.01f, 1f)]
+    public float stepWindow = 0.25f;
+    [Tooltip("Per-leg phase offsets (0-1). If empty, all legs default to 0. Use the context menu to auto-fill a tripod gait when you have 6 legs.")]
+    public float[] phaseOffsets;
 
     [Header("Visuals (optional)")]
     public GameObject footPrefab;    // optional visual marker for the computed foot/target
@@ -36,6 +43,8 @@ public class AimAtPoint : MonoBehaviour
     Vector3[] stepStarts;
     Vector3[] stepTargets;
     float[] stepProgress;
+    float[] pendingStepTime;
+    bool wasMoving = false;
 
     int totalLegs => Mathf.Min((anchorPoints != null) ? anchorPoints.Length : 0, (aimPoints != null) ? aimPoints.Length : 0);
 
@@ -46,6 +55,10 @@ public class AimAtPoint : MonoBehaviour
         if (anchorPoints.Length != aimPoints.Length)
         {
             Debug.LogWarning($"AimAtPoint: anchorPoints length ({anchorPoints.Length}) != aimPoints length ({aimPoints.Length}). Make them match.");
+        }
+        if (phaseOffsets != null && phaseOffsets.Length != 0 && totalLegs != 0 && phaseOffsets.Length != totalLegs)
+        {
+            Debug.LogWarning($"AimAtPoint: phaseOffsets length ({phaseOffsets.Length}) does not match totalLegs ({totalLegs}).");
         }
     }
 
@@ -75,6 +88,7 @@ public class AimAtPoint : MonoBehaviour
         stepStarts = new Vector3[totalLegs];
         stepTargets = new Vector3[totalLegs];
         stepProgress = new float[totalLegs];
+        pendingStepTime = new float[totalLegs];
 
         // Initialize foot positions to current raycast results to avoid popping
         for (int i = 0; i < totalLegs; i++)
@@ -86,6 +100,7 @@ public class AimAtPoint : MonoBehaviour
             stepStarts[i] = desired;
             stepTargets[i] = desired;
             stepProgress[i] = 0f;
+            pendingStepTime[i] = -1f;
 
             if (footPrefab != null)
             {
@@ -129,9 +144,33 @@ public class AimAtPoint : MonoBehaviour
     {
         if (totalLegs == 0) return;
 
+        // Precompute desired positions for all legs so we can detect movement start
+        Vector3[] desiredPositions = new Vector3[totalLegs];
+        for (int i = 0; i < totalLegs; i++) desiredPositions[i] = ComputeDesiredPositionForIndex(i);
+
+        // detect transition from stopped to moving: any leg wants to move beyond threshold
+        bool movingNow = false;
         for (int i = 0; i < totalLegs; i++)
         {
-            Vector3 desired = ComputeDesiredPositionForIndex(i);
+            float dcheck = Vector3.Distance(desiredPositions[i], footPositions[i]);
+            if (dcheck > stepThreshold * 0.5f) // smaller sensitivity to detect start
+            {
+                movingNow = true;
+                break;
+            }
+        }
+
+        if (movingNow && !wasMoving)
+        {
+            // movement just started: schedule staggered steps for alternating groups
+            OnMovementStart(desiredPositions);
+        }
+
+        wasMoving = movingNow;
+
+        for (int i = 0; i < totalLegs; i++)
+        {
+            Vector3 desired = desiredPositions[i];
 
             // if currently stepping, advance the step
             if (isStepping[i])
@@ -158,11 +197,20 @@ public class AimAtPoint : MonoBehaviour
                 float d = Vector3.Distance(desired, footPositions[i]);
                 if (d > stepThreshold)
                 {
-                    // start step
-                    isStepping[i] = true;
-                    stepStarts[i] = footPositions[i];
-                    stepTargets[i] = desired;
-                    stepProgress[i] = 0f;
+                    bool startNow = false;
+                    // start if pending time reached
+                    if (pendingStepTime[i] > 0f && Time.time >= pendingStepTime[i]) startNow = true;
+                    // or if allowed by phase window
+                    if (IsInPhaseWindow(i)) startNow = true;
+
+                    if (startNow)
+                    {
+                        isStepping[i] = true;
+                        stepStarts[i] = footPositions[i];
+                        stepTargets[i] = desired;
+                        stepProgress[i] = 0f;
+                        pendingStepTime[i] = -1f;
+                    }
                 }
                 else
                 {
@@ -204,6 +252,79 @@ public class AimAtPoint : MonoBehaviour
 
         // fallback: point along the ray at max distance
         return worldOrigin + dir * maxRayDistance;
+    }
+
+    // Return whether the given leg index is currently inside its allowed phase window to start a step.
+    bool IsInPhaseWindow(int index)
+    {
+        if (phaseOffsets == null || phaseOffsets.Length == 0) return true;
+        if (index < 0 || index >= totalLegs) return true;
+
+        float offset = Mathf.Clamp01((index < phaseOffsets.Length) ? phaseOffsets[index] : 0f);
+        float cyclePos = Mathf.Repeat(Time.time * gaitCycleFrequency, 1f);
+        float halfWindow = stepWindow * 0.5f;
+
+        // compute wrapped distance on circular phase [0,1]
+        float delta = Mathf.Abs(Mathf.DeltaAngle(cyclePos * 360f, offset * 360f)) / 360f;
+        return delta <= halfWindow;
+    }
+
+    [ContextMenu("Auto-Fill Tripod Phases (alternating)")]
+    void AutoFillTripodPhases()
+    {
+        if (totalLegs == 0)
+        {
+            Debug.LogWarning("Cannot autofill phases: no legs assigned.");
+            return;
+        }
+        phaseOffsets = new float[totalLegs];
+        for (int i = 0; i < totalLegs; i++)
+        {
+            // alternating phases: even legs = 0, odd legs = 0.5 (two groups)
+            phaseOffsets[i] = (i % 2 == 0) ? 0f : 0.5f;
+        }
+        Debug.Log($"Auto-filled tripod phases for {totalLegs} legs (alternating 0/0.5).");
+    }
+
+    // Called when movement begins to stagger initial steps so legs oscillate immediately.
+    void OnMovementStart(Vector3[] desiredPositions)
+    {
+        if (totalLegs == 0) return;
+
+        // Determine groups: use phaseOffsets if available, otherwise even/odd
+        int[] groups = new int[totalLegs];
+        for (int i = 0; i < totalLegs; i++)
+        {
+            if (phaseOffsets != null && phaseOffsets.Length == totalLegs)
+                groups[i] = (phaseOffsets[i] < 0.5f) ? 0 : 1;
+            else
+                groups[i] = i % 2; // 0 or 1 alternating
+        }
+
+        // start group 0 immediately (if they need to move), schedule group 1 half a cycle later
+        float halfCycleDelay = 0.5f / Mathf.Max(0.0001f, gaitCycleFrequency);
+        for (int i = 0; i < totalLegs; i++) pendingStepTime[i] = -1f;
+
+        for (int i = 0; i < totalLegs; i++)
+        {
+            float d = Vector3.Distance(desiredPositions[i], footPositions[i]);
+            if (d <= stepThreshold) continue;
+
+            if (groups[i] == 0)
+            {
+                // start immediately
+                isStepping[i] = true;
+                stepStarts[i] = footPositions[i];
+                stepTargets[i] = desiredPositions[i];
+                stepProgress[i] = 0f;
+                pendingStepTime[i] = -1f;
+            }
+            else
+            {
+                // schedule to start after half cycle so groups alternate
+                pendingStepTime[i] = Time.time + halfCycleDelay;
+            }
+        }
     }
 
     void OnDrawGizmosSelected()

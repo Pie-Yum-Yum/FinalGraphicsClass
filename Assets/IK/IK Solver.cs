@@ -5,6 +5,8 @@ public class IKSolver : MonoBehaviour
     [SerializeField] Transform shoulder, elbow;
     [SerializeField] float r1, r2;
     [SerializeField] Transform beginTran, endTran;
+    [Tooltip("Optional transform whose up vector will be used as 'up' when doing LookAt. If null, world up is used.")]
+    public Transform upReference;
 
     void Update()
     {
@@ -24,11 +26,13 @@ public class IKSolver : MonoBehaviour
         shoulder.position = beginTran.position;
 
         //Check for endpoint out of range
+        Vector3 upVec = (upReference != null) ? upReference.up : Vector3.up;
+
         if(d >= r1 + r2)
         {
-            shoulder.LookAt(endTran.position);
+            shoulder.LookAt(endTran.position, upVec);
             elbow.transform.position = beginTran.position + (shoulder.forward * r1);
-            elbow.LookAt(endTran.position);
+            elbow.LookAt(endTran.position, upVec);
             return;
         }
 
@@ -38,7 +42,7 @@ public class IKSolver : MonoBehaviour
         float theta = Mathf.Acos(fracNum / fracDen);
 
         //Perform 2D rotation
-        shoulder.LookAt(endTran.position);
+        shoulder.LookAt(endTran.position, upVec);
         //Vector3.up is the pole vector here
         Vector3 axis1 = Vector3.Cross((endTran.position - beginTran.position).normalized, Vector3.up).normalized;
         //MUST rotate in world space, otherwise LookAt messes everything up since the calculations are done before that (and other things?)
@@ -48,6 +52,6 @@ public class IKSolver : MonoBehaviour
         shoulder.rotation = q * shoulder.rotation;
 
         elbow.transform.position = beginTran.position + (shoulder.forward * r1);
-        elbow.LookAt(endTran);
+        elbow.LookAt(endTran.position, upVec);
     }
 }

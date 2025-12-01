@@ -104,4 +104,12 @@ public class TNode : MonoBehaviour
         Quaternion q = Quaternion.LookRotation(forward, Vector3.up);
         SetRotation(q);
     }
+
+    // LookAt with custom up vector (useful when 'up' is not global up)
+    public void LookAt(Vector3 position, Vector3 up)
+    {
+        Vector3 forward = position - GetWorldPosition();
+        Quaternion q = Quaternion.LookRotation(forward, up);
+        SetRotation(q);
+    }
 }
