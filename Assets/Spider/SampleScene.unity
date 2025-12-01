@@ -928,7 +928,7 @@ MonoBehaviour:
   r2: 2.5
   beginTran: {fileID: 190439165}
   endTran: {fileID: 31554556}
-  upReference: {fileID: 0}
+  upReference: {fileID: 1720364366}
 --- !u!1 &254180508
 GameObject:
   m_ObjectHideFlags: 0
@@ -4130,7 +4130,7 @@ MonoBehaviour:
   r2: 2.5
   beginTran: {fileID: 2051360795}
   endTran: {fileID: 84948220}
-  upReference: {fileID: 0}
+  upReference: {fileID: 1720364366}
 --- !u!1 &1133702257
 GameObject:
   m_ObjectHideFlags: 0
@@ -5303,7 +5303,7 @@ MonoBehaviour:
   r2: 2.5
   beginTran: {fileID: 567971046}
   endTran: {fileID: 553780882}
-  upReference: {fileID: 0}
+  upReference: {fileID: 1720364366}
 --- !u!1 &1559854433
 GameObject:
   m_ObjectHideFlags: 0
@@ -5682,7 +5682,7 @@ MonoBehaviour:
   r2: 2.5
   beginTran: {fileID: 1140664985}
   endTran: {fileID: 753961996}
-  upReference: {fileID: 0}
+  upReference: {fileID: 1720364366}
 --- !u!1 &1720364362
 GameObject:
   m_ObjectHideFlags: 0
@@ -5908,7 +5908,7 @@ MonoBehaviour:
   r2: 2.5
   beginTran: {fileID: 1988747158}
   endTran: {fileID: 820429785}
-  upReference: {fileID: 0}
+  upReference: {fileID: 1720364366}
 --- !u!1 &1836145354
 GameObject:
   m_ObjectHideFlags: 0
@@ -6070,7 +6070,7 @@ MonoBehaviour:
   r2: 2.5
   beginTran: {fileID: 751543515}
   endTran: {fileID: 878026452}
-  upReference: {fileID: 0}
+  upReference: {fileID: 1720364366}
 --- !u!1 &1937628803
 GameObject:
   m_ObjectHideFlags: 0

@@ -5,7 +5,6 @@ using UnityEngine.SocialPlatforms;
 public class TNode : MonoBehaviour
 {
     public TNode parent;
-    //public List<TNode> children = new List<TNode>();
     Quaternion localR;
 
     [SerializeField] Vector3 localT, localS =  Vector3.one;

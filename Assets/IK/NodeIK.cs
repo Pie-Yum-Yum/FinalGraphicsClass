@@ -4,16 +4,11 @@ public class NodeIK : MonoBehaviour
     [SerializeField] TNode shoulder, elbow;
     [SerializeField] float r1, r2;
     [SerializeField] Transform beginTran, endTran;
-    [Tooltip("Optional transform whose up vector will be used as 'up' when doing LookAt. If null, world up is used.")]
-    public Transform upReference;
+    [SerializeField] Transform upReference;
 
     void Update()
     {
-        //if (end.position != storedEndPos)
-        //{
-            doIK();
-            //storedEndPos = end.position;
-        //}
+        doIK();
     }
     
     public void doIK()
@@ -25,13 +20,11 @@ public class NodeIK : MonoBehaviour
         shoulder.SetWorldPosition(beginTran.position);
 
         //Check for endpoint out of range
-        Vector3 upVec = (upReference != null) ? upReference.up : Vector3.up;
-
         if(d >= r1 + r2)
         {
-            shoulder.LookAt(endTran.position, upVec);
+            shoulder.LookAt(endTran.position);
             elbow.SetWorldPosition(beginTran.position + (shoulder.GetForward() * r1));
-            elbow.LookAt(endTran.position, upVec);
+            elbow.LookAt(endTran.position);
             return;
         }
 
@@ -41,15 +34,15 @@ public class NodeIK : MonoBehaviour
         float theta = Mathf.Acos(fracNum / fracDen);
 
         //Perform 2D rotation
-        shoulder.LookAt(endTran.position, upVec);
+        shoulder.LookAt(endTran.position);
         //Vector3.up is the pole vector here
-        Vector3 axis1 = Vector3.Cross((endTran.position - beginTran.position).normalized, Vector3.up).normalized;
+        Vector3 axis1 = Vector3.Cross((endTran.position - beginTran.position).normalized, upReference.up).normalized;
         //MUST rotate in world space, otherwise LookAt messes everything up since the calculations are done before that (and other things?)
         Quaternion q = Quaternion.AngleAxis(Mathf.Abs(Mathf.Rad2Deg * theta), axis1);
 
         shoulder.RotateWorld(q);
 
         elbow.SetWorldPosition(beginTran.position + (shoulder.GetForward() * r1));
-        elbow.LookAt(endTran.position, upVec);
+        elbow.LookAt(endTran.position);
     }
 }

@@ -181,7 +181,7 @@ public class SpiderController : MonoBehaviour
         if (Input.GetKey(KeyCode.E)) rotInput += 1f;
         if (Mathf.Abs(rotInput) > 0.001f)
         {
-            transform.Rotate(Vector3.up, rotInput * rotationSpeed * Time.deltaTime, Space.Self);
+            transform.Rotate(Vector3.up, rotInput * rotationSpeed * Time.deltaTime, Space.World);
         }
 
         // --- Body float: sample ground under probes and adjust body height + leveling rotation ---
