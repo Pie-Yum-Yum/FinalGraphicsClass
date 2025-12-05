@@ -193,11 +193,26 @@ public class AimAtPoint : MonoBehaviour
             }
             else
             {
-                // decide whether to take a step: if desired is far from current foot position
+                // decide whether to take a step:
+                // separate horizontal (lateral) and forward components relative to the leg anchor.
+                // trigger a step if lateral displacement exceeds half the step threshold OR
+                // forward displacement exceeds the full step threshold. This prevents clipping while strafing.
                 float d = Vector3.Distance(desired, footPositions[i]);
-                if (d > stepThreshold)
+                float lateral = 0f;
+                float forward = 0f;
+                if (anchorPoints != null && i < anchorPoints.Length && anchorPoints[i] != null)
+                {
+                    Transform a = anchorPoints[i];
+                    Vector3 delta = desired - footPositions[i];
+                    lateral = Vector3.Dot(delta, a.right);
+                    forward = Vector3.Dot(delta, a.forward);
+                }
+                bool lateralTooFar = Mathf.Abs(lateral) > (stepThreshold * 0.5f);
+                bool forwardTooFar = Mathf.Abs(forward) > stepThreshold;
+                if (d > stepThreshold || lateralTooFar || forwardTooFar)
                 {
                     bool startNow = false;
+                    if(lateralTooFar) pendingStepTime[i] = 0f;
                     // start if pending time reached
                     if (pendingStepTime[i] > 0f && Time.time >= pendingStepTime[i]) startNow = true;
                     // or if allowed by phase window
