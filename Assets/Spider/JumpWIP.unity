@@ -4459,11 +4459,15 @@ MonoBehaviour:
   - {fileID: 2036434339}
   - {fileID: 87928625}
   - {fileID: 1229063325}
+  JumpController: {fileID: 1720364369}
   maxRayDistance: 9
   layerMask:
     serializedVersion: 2
     m_Bits: 8
   smoothTime: 99999
+  tuckSmoothTime: 0.05
+  tuckOffsetLocal: {x: -2, y: -1, z: 0}
+  landingBlendTime: 0.15
   stepThreshold: 1
   stepHeight: 1
   stepSpeed: 3.75
@@ -5037,7 +5041,7 @@ MonoBehaviour:
   StepDistanceText: {fileID: 1898327103}
   UIPanel: {fileID: 932648194}
   AimAtPoint: {fileID: 805704030}
-  spiderController: {fileID: 1720364367}
+  spiderController: {fileID: 0}
 --- !u!4 &925553645
 Transform:
   m_ObjectHideFlags: 0
@@ -8623,7 +8627,7 @@ GameObject:
   - component: {fileID: 1720364365}
   - component: {fileID: 1720364364}
   - component: {fileID: 1720364363}
-  - component: {fileID: 1720364367}
+  - component: {fileID: 1720364369}
   m_Layer: 0
   m_Name: Body
   m_TagString: Untagged
@@ -8724,7 +8728,7 @@ Transform:
   - {fileID: 330585546}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1720364367
+--- !u!114 &1720364369
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8733,7 +8737,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1720364362}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 024f1db52e02f3444974ff32343b428c, type: 3}
+  m_Script: {fileID: 11500000, guid: e6f90f50b4d8cdc45a0ee8d08083c38d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   aimPoints:
@@ -8743,6 +8747,7 @@ MonoBehaviour:
   - {fileID: 2036434339}
   - {fileID: 87928625}
   - {fileID: 1229063325}
+  AimAtPoint: {fileID: 805704030}
   moveSpeed: 150
   positionSmoothTime: 0.3
   rotationSpeed: 50
@@ -8767,8 +8772,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 8
   enableJumpToFloor: 1
-  jumpDuration: 0.6
-  jumpArcHeight: 0.6
+  jumpDuration: 1.2
+  jumpArcHeight: 7.5
   enableWallClimb: 1
   bodyRadius: 0.5
   collisionMask:
@@ -8783,6 +8788,7 @@ MonoBehaviour:
   - {fileID: 753961996}
   - {fileID: 84948220}
   - {fileID: 553780882}
+  isJumping: 0
 --- !u!1 &1734769443
 GameObject:
   m_ObjectHideFlags: 0

@@ -8,12 +8,20 @@ public class AimAtPoint : MonoBehaviour
     [Tooltip("Corresponding aim point transform per leg. Must match length of anchorPoints.")]
     public Transform[] aimPoints;
 
+    public JumpController JumpController;
+
     [Header("Raycast")]
     public float maxRayDistance = 2f;
     public LayerMask layerMask = ~0;
 
     [Header("Smoothing")]
     public float smoothTime = 0.08f;
+    [Tooltip("How quickly feet tuck toward anchors during a jump")]
+    public float tuckSmoothTime = 0.05f;
+    [Tooltip("Local-space offset from each anchor used while tucking during a jump (e.g., pull under the body)")]
+    public Vector3 tuckOffsetLocal = new Vector3(0f, -0.1f, 0f);
+    [Tooltip("Blend time used right after landing so feet settle naturally instead of snapping")]
+    public float landingBlendTime = 0.15f;
 
     [Header("Stepping")]
     [Tooltip("Distance the aim point must move before the foot takes a step")]
@@ -45,6 +53,9 @@ public class AimAtPoint : MonoBehaviour
     float[] stepProgress;
     float[] pendingStepTime;
     bool wasMoving = false;
+    bool wasJumpingLast = false;
+    float landingBlendRemaining = 0f;
+    Vector3[] landingStartPositions;
 
     int totalLegs => Mathf.Min((anchorPoints != null) ? anchorPoints.Length : 0, (aimPoints != null) ? aimPoints.Length : 0);
 
@@ -144,36 +155,113 @@ public class AimAtPoint : MonoBehaviour
     {
         if (totalLegs == 0) return;
 
+        bool isJumpingNow = (JumpController != null && JumpController.isJumping);
+
         // Precompute desired positions for all legs so we can detect movement start
         Vector3[] desiredPositions = new Vector3[totalLegs];
-        for (int i = 0; i < totalLegs; i++) desiredPositions[i] = ComputeDesiredPositionForIndex(i);
-
-        // detect transition from stopped to moving: any leg wants to move beyond threshold
-        bool movingNow = false;
         for (int i = 0; i < totalLegs; i++)
         {
-            float dcheck = Vector3.Distance(desiredPositions[i], footPositions[i]);
-            if (dcheck > stepThreshold * 0.5f) // smaller sensitivity to detect start
+            // If jumping, tuck toward anchor position plus optional local offset
+            if (isJumpingNow && anchorPoints != null && i < anchorPoints.Length && anchorPoints[i] != null)
             {
-                movingNow = true;
-                break;
+                // Determine side by anchor index: assume first half = one side, second half = other side
+                // For 6 legs: 0,1,2 are one side and 3,4,5 are the other
+                Vector3 offset = tuckOffsetLocal;
+                
+                // If anchor is in the second half, flip the x offset
+                if (i >= totalLegs / 2)
+                {
+                    offset.x *= -1f;
+                }
+                
+                // Debug first frame of jump
+                if ((i == 0 || i == 3) && !wasJumpingLast)
+                {
+                    //Debug.Log($"Leg {i} ({anchorPoints[i].name}): offset={offset}, tuckOffsetLocal={tuckOffsetLocal}");
+                }
+                
+                // Convert offset from body local space to world space and apply to anchor position
+                Vector3 worldOffset = transform.TransformVector(offset);
+                desiredPositions[i] = anchorPoints[i].position + worldOffset;
+            }
+            else
+            {
+                desiredPositions[i] = ComputeDesiredPositionForIndex(i);
             }
         }
 
-        if (movingNow && !wasMoving)
+        // On landing: start a blend so feet settle naturally
+        if (!isJumpingNow && wasJumpingLast)
         {
-            // movement just started: schedule staggered steps for alternating groups
-            OnMovementStart(desiredPositions);
+            landingBlendRemaining = landingBlendTime;
+            if (landingStartPositions == null || landingStartPositions.Length != totalLegs)
+                landingStartPositions = new Vector3[totalLegs];
+            for (int i = 0; i < totalLegs; i++)
+            {
+                landingStartPositions[i] = footPositions[i];
+                stepTargets[i] = desiredPositions[i];
+                stepStarts[i] = desiredPositions[i];
+                footVelocities[i] = Vector3.zero;
+                isStepping[i] = false;
+                stepProgress[i] = 0f;
+                pendingStepTime[i] = -1f;
+            }
+            wasMoving = false; // force movement detection to restart cleanly
         }
 
-        wasMoving = movingNow;
+        // decrement landing blend timer
+        if (landingBlendRemaining > 0f)
+        {
+            landingBlendRemaining = Mathf.Max(0f, landingBlendRemaining - Time.deltaTime);
+        }
+
+        // detect transition from stopped to moving: any leg wants to move beyond threshold (skip while jumping)
+        if (!isJumpingNow)
+        {
+            bool movingNow = false;
+            for (int i = 0; i < totalLegs; i++)
+            {
+                float dcheck = Vector3.Distance(desiredPositions[i], footPositions[i]);
+                if (dcheck > stepThreshold * 0.5f) // smaller sensitivity to detect start
+                {
+                    movingNow = true;
+                    break;
+                }
+            }
+
+            if (movingNow && !wasMoving)
+            {
+                // movement just started: schedule staggered steps for alternating groups
+                OnMovementStart(desiredPositions);
+            }
+
+            wasMoving = movingNow;
+        }
 
         for (int i = 0; i < totalLegs; i++)
         {
             Vector3 desired = desiredPositions[i];
 
+            // If jumping: force tuck toward anchor, disable stepping
+            if (isJumpingNow)
+            {
+                isStepping[i] = false;
+                footPositions[i] = Vector3.SmoothDamp(footPositions[i], desired, ref footVelocities[i], tuckSmoothTime);
+                stepProgress[i] = 0f;
+                pendingStepTime[i] = -1f;
+            }
+            // If recently landed, blend feet back to desired smoothly without stepping
+            else if (landingBlendRemaining > 0f)
+            {
+                float t = 1f - (landingBlendRemaining / Mathf.Max(0.0001f, landingBlendTime));
+                footPositions[i] = Vector3.Lerp(landingStartPositions[i], desired, t);
+                footVelocities[i] = Vector3.zero;
+                isStepping[i] = false;
+                stepProgress[i] = 0f;
+                pendingStepTime[i] = -1f;
+            }
             // if currently stepping, advance the step
-            if (isStepping[i])
+            else if (isStepping[i])
             {
                 stepProgress[i] += Time.deltaTime * stepSpeed;
                 float p = Mathf.Clamp01(stepProgress[i]);
@@ -209,7 +297,7 @@ public class AimAtPoint : MonoBehaviour
                 }
                 bool lateralTooFar = Mathf.Abs(lateral) > (stepThreshold * 0.5f);
                 bool forwardTooFar = Mathf.Abs(forward) > stepThreshold;
-                if (d > stepThreshold || lateralTooFar || forwardTooFar)
+                if (d > stepThreshold || lateralTooFar || forwardTooFar || JumpController.isJumping)
                 {
                     bool startNow = false;
                     if(lateralTooFar) pendingStepTime[i] = 0f;
@@ -242,6 +330,9 @@ public class AimAtPoint : MonoBehaviour
                     footMarkers[i].rotation = Quaternion.LookRotation((aimPoints[i].position - footPositions[i]).normalized, Vector3.up);
             }
         }
+
+        // record jump state for next frame transition detection
+        wasJumpingLast = isJumpingNow;
     }
 
     // Compute desired target position for a given leg index by raycasting from the per-leg anchor toward its matching aim point.
@@ -367,4 +458,5 @@ public class AimAtPoint : MonoBehaviour
             }
         }
     }
+
 }
