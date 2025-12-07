@@ -113,16 +113,7 @@ public class JumpController : MonoBehaviour
         
         
     }
-
-    IEnumerator WaitJump()
-    {
-        yield return new WaitForSeconds(jumpDuration);
-        
-        AimAtPoint.smoothTime = 9999f;
-        AimAtPoint.maxRayDistance = 9f;
-         
-    }
-
+    
     void Update()
     {
         // Mouse click -> jump to floor hit
@@ -135,11 +126,8 @@ public class JumpController : MonoBehaviour
             if (Physics.Raycast(ray, out hit, 200f, floorLayerMask))
             {
                 
-                //AimAtPoint.smoothTime = 0.005f;
-                //AimAtPoint.maxRayDistance = 2f;
                 // start jump to hit.point and align to its normal
                 StartJumpToFloor(hit.point, hit.normal);
-                //StartCoroutine(WaitJump());
             }
         }
 
@@ -162,18 +150,31 @@ public class JumpController : MonoBehaviour
             // arc
             float arc = Mathf.Sin(p * Mathf.PI) * jumpArcHeight;
 
-            
-
-
             transform.position = horiz + Vector3.up * arc;
             // rotate toward target
             transform.rotation = Quaternion.Slerp(jumpStartRot, jumpTargetRot, Mathf.SmoothStep(0f, 1f, p));
+
+            // keep aim points following body during jump
+            if (aimPoints != null && aimLocalOffsets != null)
+            {
+                for (int i = 0; i < aimPoints.Length; i++)
+                {
+                    if (aimPoints[i] == null) continue;
+                    Vector3 desiredWorld = transform.TransformPoint(aimLocalOffsets[i]);
+                    aimPoints[i].position = Vector3.SmoothDamp(aimPoints[i].position, desiredWorld, ref aimVelocities[i], aimPointSmoothTime);
+                }
+            }
+
             if (p >= 1f)
             {
                 isJumping = false;
                 bodyVerticalVelocity = 0f;
                 transform.position = jumpTargetPos;
                 transform.rotation = jumpTargetRot;
+            }
+            else
+            {
+                return; // mid-jump: skip ground follow and XZ smoothing to avoid jitter
             }
         }
 
