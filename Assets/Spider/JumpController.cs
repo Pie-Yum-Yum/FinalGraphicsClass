@@ -110,7 +110,13 @@ public class JumpController : MonoBehaviour
         if (forwardProj.sqrMagnitude < 0.0001f) forwardProj = Vector3.ProjectOnPlane(Vector3.right, normal);
         jumpTargetRot = Quaternion.LookRotation(forwardProj.normalized, normal.normalized);
 
-        
+        Vector3 jumpTargetForward = Vector3.ProjectOnPlane(transform.forward, normal.normalized);
+        if(jumpTargetForward.magnitude == 0f)
+        {
+            jumpTargetForward = Vector3.ProjectOnPlane(Vector3.Lerp(transform.forward, transform.up, 0.1f), normal.normalized);
+        }
+        jumpTargetForward.Normalize();
+        jumpTargetRot = Quaternion.LookRotation(jumpTargetForward.normalized, normal.normalized);
         
     }
     
@@ -183,8 +189,8 @@ public class JumpController : MonoBehaviour
 
 
 
-        Vector3 targetPosXZ = new Vector3(targetPos.x, transform.position.y, targetPos.z);
-        Vector3 desiredXZ = Vector3.SmoothDamp(transform.position, targetPosXZ, ref bodyVelocity, positionSmoothTime);
+        //Vector3 targetPosXZ = new Vector3(targetPos.x, transform.position.y, targetPos.z);
+        Vector3 desiredXZ = Vector3.SmoothDamp(transform.position, targetPos, ref bodyVelocity, positionSmoothTime);
 
         // Prevent penetrating walls: spherecast from current to desired and clamp if hit
         if (enableWallClimb)
@@ -194,11 +200,13 @@ public class JumpController : MonoBehaviour
             if (moveDist > 0.0001f)
             {
                 RaycastHit hit;
-                if (Physics.SphereCast(transform.position, bodyRadius, moveDelta.normalized, out hit, moveDist + 0.001f, collisionMask, QueryTriggerInteraction.Ignore))
+                if (Physics.SphereCast(transform.position, 0.1f, moveDelta.normalized, out hit, moveDist + 0.05f, collisionMask, QueryTriggerInteraction.Ignore))
                 {
                     // clamp position to be outside the hit surface, offset by bodyRadius
                     Vector3 hitPos = hit.point + hit.normal * (bodyRadius + 0.01f);
-                    desiredXZ = new Vector3(hitPos.x, desiredXZ.y, hitPos.z);
+                    desiredXZ = new Vector3(hitPos.x, hitPos.y, hitPos.z);
+
+                    if(!isJumping) StartJumpToFloor(hit.point, hit.normal);
                 }
             }
         }
@@ -211,7 +219,7 @@ public class JumpController : MonoBehaviour
         if (Input.GetKey(KeyCode.E)) rotInput += 1f;
         if (Mathf.Abs(rotInput) > 0.001f)
         {
-            transform.Rotate(Vector3.up, rotInput * rotationSpeed * Time.deltaTime, Space.World);
+            transform.Rotate(transform.up, rotInput * rotationSpeed * Time.deltaTime, Space.World);
         }
 
         // --- Body float: sample ground under probes and adjust body height + leveling rotation ---
@@ -224,9 +232,9 @@ public class JumpController : MonoBehaviour
             {
                 var p = groundProbes[i];
                 if (p == null) continue;
-                Vector3 rayStart = p.position + Vector3.up * probeRayStartHeight;
+                Vector3 rayStart = p.position + transform.up * probeRayStartHeight;
                 RaycastHit hit;
-                if (Physics.Raycast(rayStart, Vector3.down, out hit, probeRayDistance + probeRayStartHeight, groundLayerMask))
+                if (Physics.Raycast(rayStart, -transform.up, out hit, probeRayDistance + probeRayStartHeight, groundLayerMask))
                 {
                     avgPoint += hit.point;
                     avgNormal += hit.normal;
@@ -236,15 +244,29 @@ public class JumpController : MonoBehaviour
 
             if (hitCount > 0)
             {
+                // **code piece from chatgpt**
+                // Average the contact point and normal
                 avgPoint /= hitCount;
                 avgNormal.Normalize();
 
-                float desiredY = avgPoint.y + bodyHeightOffset;
-                Vector3 current = transform.position;
-                Vector3 desiredPos = new Vector3(current.x, desiredY, current.z);
-                // Smooth the vertical movement
-                float newY = Mathf.SmoothDamp(current.y, desiredPos.y, ref bodyVerticalVelocity, bodyHeightSmoothTime);
-                transform.position = new Vector3(current.x, newY, current.z);
+                // Compute where the spider body should be along the surface normal
+                Vector3 currentPos = transform.position;
+
+                // Find how far the current body is from the average plane
+                float dist = Vector3.Dot(avgNormal, currentPos - avgPoint);
+
+                // Compute target position by correcting along the normal
+                Vector3 desiredPos = currentPos - avgNormal * (dist - bodyHeightOffset);
+
+                // Smooth the movement along the normal direction
+                Vector3 smoothVelocity = Vector3.zero;  // make this persistent in your class!
+                transform.position = Vector3.SmoothDamp(
+                    currentPos,
+                    desiredPos,
+                    ref smoothVelocity,
+                    bodyHeightSmoothTime
+                );
+                // end code piece
 
                 // First try: cast rays from each groundProbe toward its corresponding aimPoint and collect normals when they hit the Floor layer
                 // First: try to detect walls by casting from probe -> aim against groundLayerMask (or collisionMask) to find steep surfaces
@@ -291,7 +313,7 @@ public class JumpController : MonoBehaviour
                         Vector3 desiredOnPlane = avgGeneralPoint + normalToUse * bodyHeightOffset;
                         // directly set vertical to desiredOnPlane.y (will be smoothed below)
                         Vector3 cur = transform.position;
-                        transform.position = new Vector3(cur.x, Mathf.SmoothDamp(cur.y, desiredOnPlane.y, ref bodyVerticalVelocity, bodyHeightSmoothTime), cur.z);
+                        //transform.position = new Vector3(cur.x, Mathf.SmoothDamp(cur.y, desiredOnPlane.y, ref bodyVerticalVelocity, bodyHeightSmoothTime), cur.z);//////////////////////////
                     }
                     else if (useAnchorNormals)
                     {

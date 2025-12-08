@@ -10289,7 +10289,7 @@ MonoBehaviour:
   - {fileID: 87928625}
   - {fileID: 1229063325}
   AimAtPoint: {fileID: 805704030}
-  moveSpeed: 150
+  moveSpeed: 350
   positionSmoothTime: 0.3
   rotationSpeed: 50
   aimPointSmoothTime: 0.08
@@ -10305,7 +10305,7 @@ MonoBehaviour:
   - {fileID: 84948220}
   - {fileID: 553780882}
   probeRayStartHeight: 1
-  probeRayDistance: 9
+  probeRayDistance: 5
   groundLayerMask:
     serializedVersion: 2
     m_Bits: 8
@@ -10313,8 +10313,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 8
   enableJumpToFloor: 0
-  jumpDuration: 1.2
-  jumpArcHeight: 7.5
+  jumpDuration: 0.275
+  jumpArcHeight: 1
   enableWallClimb: 1
   bodyRadius: 0.5
   collisionMask:
