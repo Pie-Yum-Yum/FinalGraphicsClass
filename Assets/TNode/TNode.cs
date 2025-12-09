@@ -16,7 +16,7 @@ public class TNode : MonoBehaviour
 
         if(GetComponent<Renderer>())
         {
-            GetComponent<MeshFilter>().mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 10000f);
+            //GetComponent<MeshFilter>().sharedMesh.bounds = new Bounds(Vector3.zero, Vector3.one * 10000f);
             GetComponent<Renderer>().material.SetMatrix("MyTRSMatrix", GetWorldMatrix());
         }
     }
