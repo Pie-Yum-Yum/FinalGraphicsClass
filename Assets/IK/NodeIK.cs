@@ -3,8 +3,8 @@ public class NodeIK : MonoBehaviour
 {
     [SerializeField] TNode shoulder, elbow;
     [SerializeField] float r1, r2;
-    [SerializeField] Transform beginTran, endTran;
-    [SerializeField] Transform upReference;
+    [SerializeField] TNode beginTran, endTran;
+    [SerializeField] TNode upReference;
 
     void Update()
     {
@@ -14,17 +14,17 @@ public class NodeIK : MonoBehaviour
     public void doIK()
     {
         //Initial variables
-        float d = Vector3.Distance(beginTran.position, endTran.position);
+        float d = Vector3.Distance(beginTran.GetWorldPosition(), endTran.GetWorldPosition());
 
         //Move shoulder to position
-        shoulder.SetWorldPosition(beginTran.position);
+        shoulder.SetWorldPosition(beginTran.GetWorldPosition());
 
         //Check for endpoint out of range
         if(d >= r1 + r2)
         {
-            shoulder.LookAt(endTran.position);
-            elbow.SetWorldPosition(beginTran.position + (shoulder.GetForward() * r1));
-            elbow.LookAt(endTran.position);
+            shoulder.LookAt(endTran.GetWorldPosition());
+            //elbow.SetWorldPosition(beginTran.GetWorldPosition() + (shoulder.GetForward() * r1));
+            elbow.LookAt(endTran.GetWorldPosition());
             return;
         }
 
@@ -34,15 +34,15 @@ public class NodeIK : MonoBehaviour
         float theta = Mathf.Acos(fracNum / fracDen);
 
         //Perform 2D rotation
-        shoulder.LookAt(endTran.position);
+        shoulder.LookAt(endTran.GetWorldPosition());
         //Vector3.up is the pole vector here
-        Vector3 axis1 = Vector3.Cross((endTran.position - beginTran.position).normalized, upReference.up).normalized;
+        Vector3 axis1 = Vector3.Cross((endTran.GetWorldPosition() - beginTran.GetWorldPosition()).normalized, upReference.GetUp()).normalized;
         //MUST rotate in world space, otherwise LookAt messes everything up since the calculations are done before that (and other things?)
         Quaternion q = Quaternion.AngleAxis(Mathf.Abs(Mathf.Rad2Deg * theta), axis1);
 
         shoulder.RotateWorld(q);
 
-        elbow.SetWorldPosition(beginTran.position + (shoulder.GetForward() * r1));
-        elbow.LookAt(endTran.position);
+        //elbow.SetWorldPosition(beginTran.GetWorldPosition() + (shoulder.GetForward() * r1));
+        elbow.LookAt(endTran.GetWorldPosition());
     }
 }

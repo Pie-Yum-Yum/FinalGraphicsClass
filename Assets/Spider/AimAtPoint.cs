@@ -4,9 +4,9 @@ public class AimAtPoint : MonoBehaviour
 {
     [Header("References")]
     [Tooltip("One anchor transform per leg. E.g. 6 anchors for 6 legs.")]
-    public Transform[] anchorPoints;
+    public TNode[] anchorPoints;
     [Tooltip("Corresponding aim point transform per leg. Must match length of anchorPoints.")]
-    public Transform[] aimPoints;
+    public TNode[] aimPoints;
 
     public JumpController JumpController;
 
@@ -45,7 +45,7 @@ public class AimAtPoint : MonoBehaviour
 
     Vector3[] footPositions;
     Vector3[] footVelocities;
-    [SerializeField] Transform[] footMarkers = new Transform[6];
+    [SerializeField] TNode[] footMarkers = new TNode[6];
     // stepping state
     bool[] isStepping;
     Vector3[] stepStarts;
@@ -58,6 +58,13 @@ public class AimAtPoint : MonoBehaviour
     Vector3[] landingStartPositions;
 
     int totalLegs => Mathf.Min((anchorPoints != null) ? anchorPoints.Length : 0, (aimPoints != null) ? aimPoints.Length : 0);
+
+    TNode tnode;
+
+    void Awake()
+    {
+        tnode = GetComponent<TNode>();
+    }
 
     void OnValidate()
     {
@@ -122,35 +129,6 @@ public class AimAtPoint : MonoBehaviour
         }
     }
 
-    // Helper functions accessible from the component's context menu in the inspector
-    [ContextMenu("Auto-Fill Anchors From Children (name contains 'Anchor')")]
-    void AutoFillAnchorsFromChildren()
-    {
-        var children = GetComponentsInChildren<Transform>(true);
-        var list = new System.Collections.Generic.List<Transform>();
-        foreach (var c in children)
-        {
-            if (c == this.transform) continue;
-            if (c.name.ToLower().Contains("anchor")) list.Add(c);
-        }
-        anchorPoints = list.ToArray();
-        Debug.Log($"Auto-filled {anchorPoints.Length} anchorPoints from children.");
-    }
-
-    [ContextMenu("Auto-Fill Aims From Children (name contains 'Aim')")]
-    void AutoFillAimsFromChildren()
-    {
-        var children = GetComponentsInChildren<Transform>(true);
-        var list = new System.Collections.Generic.List<Transform>();
-        foreach (var c in children)
-        {
-            if (c == this.transform) continue;
-            if (c.name.ToLower().Contains("aim")) list.Add(c);
-        }
-        aimPoints = list.ToArray();
-        Debug.Log($"Auto-filled {aimPoints.Length} aimPoints from children.");
-    }
-
     void Update()
     {
         if (totalLegs == 0) return;
@@ -181,8 +159,8 @@ public class AimAtPoint : MonoBehaviour
                 }
                 
                 // Convert offset from body local space to world space and apply to anchor position
-                Vector3 worldOffset = transform.TransformVector(offset);
-                desiredPositions[i] = anchorPoints[i].position + worldOffset;
+                Vector3 worldOffset = tnode.TransformVector(offset);
+                desiredPositions[i] = anchorPoints[i].GetWorldPosition() + worldOffset;
             }
             else
             {
@@ -270,7 +248,7 @@ public class AimAtPoint : MonoBehaviour
                 Vector3 horizontal = Vector3.Lerp(stepStarts[i], stepTargets[i], p);
                 // vertical arc (sin curve)
                 float arc = Mathf.Sin(p * Mathf.PI) * stepHeight;
-                footPositions[i] = horizontal + Vector3.up * arc;
+                footPositions[i] = horizontal + tnode.parent.GetUp() * arc;
 
                 if (p >= 1f)
                 {
@@ -290,10 +268,10 @@ public class AimAtPoint : MonoBehaviour
                 float forward = 0f;
                 if (anchorPoints != null && i < anchorPoints.Length && anchorPoints[i] != null)
                 {
-                    Transform a = anchorPoints[i];
+                    TNode a = anchorPoints[i];
                     Vector3 delta = desired - footPositions[i];
-                    lateral = Vector3.Dot(delta, a.right);
-                    forward = Vector3.Dot(delta, a.forward);
+                    lateral = Vector3.Dot(delta, a.GetRight());
+                    forward = Vector3.Dot(delta, a.GetForward());
                 }
                 bool lateralTooFar = Mathf.Abs(lateral) > (stepThreshold * 0.5f);
                 bool forwardTooFar = Mathf.Abs(forward) > stepThreshold;
@@ -324,10 +302,13 @@ public class AimAtPoint : MonoBehaviour
 
             if (footMarkers[i] != null)
             {
-                footMarkers[i].position = footPositions[i];
+                footMarkers[i].SetWorldPosition(footPositions[i]);
                 // orient marker to face its matching aim point for clarity (if available)
                 if (aimPoints != null && i < aimPoints.Length && aimPoints[i] != null)
-                    footMarkers[i].rotation = Quaternion.LookRotation((aimPoints[i].position - footPositions[i]).normalized, Vector3.up);
+                {
+                    Quaternion q = Quaternion.LookRotation((aimPoints[i].GetWorldPosition() - footPositions[i]).normalized, tnode.GetUp());
+                    footMarkers[i].SetRotation(q);
+                }
             }
         }
 
@@ -341,14 +322,14 @@ public class AimAtPoint : MonoBehaviour
         if (anchorPoints == null || aimPoints == null) return Vector3.zero;
         if (index < 0 || index >= totalLegs) return Vector3.zero;
 
-        Transform a = anchorPoints[index];
-        Transform t = aimPoints[index];
+        TNode a = anchorPoints[index];
+        TNode t = aimPoints[index];
         if (a == null || t == null) return Vector3.zero;
 
-        Vector3 worldOrigin = a.position;
-        Vector3 dir = (t.position - worldOrigin);
+        Vector3 worldOrigin = a.GetWorldPosition();
+        Vector3 dir = (t.GetWorldPosition() - worldOrigin);
         float dist = dir.magnitude;
-        if (dist <= 0.0001f) dir = a.forward; else dir /= dist;
+        if (dist <= 0.0001f) dir = a.GetForward(); else dir /= dist;
 
         RaycastHit hit;
         if (Physics.Raycast(worldOrigin, dir, out hit, maxRayDistance, layerMask))
@@ -441,11 +422,11 @@ public class AimAtPoint : MonoBehaviour
         Gizmos.color = Color.cyan;
         for (int i = 0; i < totalLegs; i++)
         {
-            Transform a = anchorPoints[i];
-            Transform t = aimPoints[i];
+            TNode a = anchorPoints[i];
+            TNode t = aimPoints[i];
             if (a == null || t == null) continue;
-            Gizmos.DrawSphere(a.position, 0.02f);
-            Gizmos.DrawLine(a.position, t.position);
+            Gizmos.DrawSphere(a.GetWorldPosition(), 0.02f);
+            Gizmos.DrawLine(a.GetWorldPosition(), t.GetWorldPosition());
         }
 
         // draw computed foot positions

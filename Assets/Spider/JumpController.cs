@@ -7,11 +7,11 @@ using UnityEngine;
 public class JumpController : MonoBehaviour
 {
     [Tooltip("Aim point transforms (one per leg). These will be moved smoothly to maintain their offsets from the body.")]
-    public Transform[] aimPoints;
+    public TNode[] aimPoints;
     public AimAtPoint AimAtPoint;
 
     [Header("Movement")]
-    public float moveSpeed = 2f;
+    public float moveSpeed = 375f;
     [Tooltip("How quickly the body reaches the target position")]
     public float positionSmoothTime = 0.12f;
     [Tooltip("Rotation speed (deg/sec) when turning toward movement direction")]
@@ -31,7 +31,7 @@ public class JumpController : MonoBehaviour
     [Tooltip("How quickly the body rotates to level with the ground normal")]
     public float bodyRotationSmoothSpeed = 8f;
     [Tooltip("Transforms used to sample the ground below the spider (assign same anchors used for legs)")]
-    public Transform[] groundProbes;
+    public TNode[] groundProbes;
     [Tooltip("How far above each probe to start the ground raycast")]
     public float probeRayStartHeight = 1.0f;
     [Tooltip("Maximum ray distance when sampling the ground")]
@@ -61,7 +61,7 @@ public class JumpController : MonoBehaviour
     [Tooltip("When enabled, use the average 'up' direction of these anchor transforms as the body's normal for leveling.")]
     public bool useAnchorNormals = false;
     [Tooltip("Anchor transforms whose up vectors will be averaged to produce the body's normal when 'useAnchorNormals' is on.")]
-    public Transform[] anchorNormals;
+    public TNode[] anchorNormals;
 
     Vector3 bodyVelocity = Vector3.zero;
     Vector3[] aimVelocities;
@@ -76,6 +76,14 @@ public class JumpController : MonoBehaviour
     Quaternion jumpStartRot;
     Quaternion jumpTargetRot;
     float jumpElapsed = 0f;
+    Vector3 smoothVelocity = Vector3.zero;
+
+    TNode tnode;
+
+    void Awake()
+    {
+        tnode = GetComponent<TNode>();
+    }
 
     void Start()
     {
@@ -89,7 +97,7 @@ public class JumpController : MonoBehaviour
                 if (aimPoints[i] != null)
                 {
                     // store offset in body's local space so we can reapply as the body moves/rotates
-                    aimLocalOffsets[i] = transform.InverseTransformPoint(aimPoints[i].position);
+                    aimLocalOffsets[i] = tnode.InverseTransformPoint(aimPoints[i].GetWorldPosition());
                     aimVelocities[i] = Vector3.zero;
                 }
             }
@@ -100,20 +108,20 @@ public class JumpController : MonoBehaviour
     {
         isJumping = true;
         jumpElapsed = 0f;
-        jumpStartPos = transform.position;
+        jumpStartPos = tnode.GetWorldPosition();
 
         // target position sits offset from hit point along normal by bodyHeightOffset
         jumpTargetPos = point + normal.normalized * bodyHeightOffset;
-        jumpStartRot = transform.rotation;
+        jumpStartRot = tnode.GetRotation();
         // compute forward projected onto plane of normal to choose a sensible forward direction
-        Vector3 forwardProj = Vector3.ProjectOnPlane(transform.forward, normal);
+        Vector3 forwardProj = Vector3.ProjectOnPlane(tnode.GetForward(), normal);
         if (forwardProj.sqrMagnitude < 0.0001f) forwardProj = Vector3.ProjectOnPlane(Vector3.right, normal);
         jumpTargetRot = Quaternion.LookRotation(forwardProj.normalized, normal.normalized);
 
-        Vector3 jumpTargetForward = Vector3.ProjectOnPlane(transform.forward, normal.normalized);
+        Vector3 jumpTargetForward = Vector3.ProjectOnPlane(tnode.GetForward(), normal.normalized);
         if(jumpTargetForward.magnitude == 0f)
         {
-            jumpTargetForward = Vector3.ProjectOnPlane(Vector3.Lerp(transform.forward, transform.up, 0.1f), normal.normalized);
+            jumpTargetForward = Vector3.ProjectOnPlane(Vector3.Lerp(tnode.GetForward(), tnode.GetUp(), 0.1f), normal.normalized);
         }
         jumpTargetForward.Normalize();
         jumpTargetRot = Quaternion.LookRotation(jumpTargetForward.normalized, normal.normalized);
@@ -143,8 +151,8 @@ public class JumpController : MonoBehaviour
         Vector3 input = new Vector3(h, 0f, v);
         if (input.sqrMagnitude > 1f) input.Normalize();
 
-        Vector3 desiredMove = transform.TransformDirection(input) * moveSpeed;
-        Vector3 targetPos = transform.position + desiredMove * Time.deltaTime;
+        Vector3 desiredMove = tnode.TransformDirection(input) * moveSpeed;
+        Vector3 targetPos = tnode.GetWorldPosition() + desiredMove * Time.deltaTime;
 
         // If currently jumping, handle jump motion and skip usual body float/ground logic
         if (isJumping)
@@ -156,9 +164,9 @@ public class JumpController : MonoBehaviour
             // arc
             float arc = Mathf.Sin(p * Mathf.PI) * jumpArcHeight;
 
-            transform.position = horiz + Vector3.up * arc;
+            tnode.SetWorldPosition(horiz + Vector3.up * arc);
             // rotate toward target
-            transform.rotation = Quaternion.Slerp(jumpStartRot, jumpTargetRot, Mathf.SmoothStep(0f, 1f, p));
+            tnode.SetRotation(Quaternion.Slerp(jumpStartRot, jumpTargetRot, Mathf.SmoothStep(0f, 1f, p)));
 
             // keep aim points following body during jump
             if (aimPoints != null && aimLocalOffsets != null)
@@ -166,8 +174,9 @@ public class JumpController : MonoBehaviour
                 for (int i = 0; i < aimPoints.Length; i++)
                 {
                     if (aimPoints[i] == null) continue;
-                    Vector3 desiredWorld = transform.TransformPoint(aimLocalOffsets[i]);
-                    aimPoints[i].position = Vector3.SmoothDamp(aimPoints[i].position, desiredWorld, ref aimVelocities[i], aimPointSmoothTime);
+                    Vector3 desiredWorld = tnode.TransformPoint(aimLocalOffsets[i]);
+                    Vector3 pos = Vector3.SmoothDamp(aimPoints[i].GetWorldPosition(), desiredWorld, ref aimVelocities[i], aimPointSmoothTime);
+                    aimPoints[i].SetWorldPosition(pos);
                 }
             }
 
@@ -175,8 +184,8 @@ public class JumpController : MonoBehaviour
             {
                 isJumping = false;
                 bodyVerticalVelocity = 0f;
-                transform.position = jumpTargetPos;
-                transform.rotation = jumpTargetRot;
+                tnode.SetWorldPosition(jumpTargetPos);
+                tnode.SetRotation(jumpTargetRot);
             }
             else
             {
@@ -190,17 +199,17 @@ public class JumpController : MonoBehaviour
 
 
         //Vector3 targetPosXZ = new Vector3(targetPos.x, transform.position.y, targetPos.z);
-        Vector3 desiredXZ = Vector3.SmoothDamp(transform.position, targetPos, ref bodyVelocity, positionSmoothTime);
+        Vector3 desiredXZ = Vector3.SmoothDamp(tnode.GetWorldPosition(), targetPos, ref bodyVelocity, positionSmoothTime);
 
         // Prevent penetrating walls: spherecast from current to desired and clamp if hit
         if (enableWallClimb)
         {
-            Vector3 moveDelta = desiredXZ - transform.position;
+            Vector3 moveDelta = desiredXZ - tnode.GetWorldPosition();
             float moveDist = moveDelta.magnitude;
             if (moveDist > 0.0001f)
             {
                 RaycastHit hit;
-                if (Physics.SphereCast(transform.position, 0.1f, moveDelta.normalized, out hit, moveDist + 0.05f, collisionMask, QueryTriggerInteraction.Ignore))
+                if (Physics.SphereCast(tnode.GetWorldPosition(), 0.1f, moveDelta.normalized, out hit, moveDist + 0.05f, collisionMask, QueryTriggerInteraction.Ignore))
                 {
                     // clamp position to be outside the hit surface, offset by bodyRadius
                     Vector3 hitPos = hit.point + hit.normal * (bodyRadius + 0.01f);
@@ -211,7 +220,7 @@ public class JumpController : MonoBehaviour
             }
         }
 
-        transform.position = desiredXZ;
+        tnode.SetWorldPosition(desiredXZ);
 
         // Rotation via Q/E keys (rotate in place). This keeps translation independent (WS = forward/back, AD = strafe).
         float rotInput = 0f;
@@ -219,7 +228,8 @@ public class JumpController : MonoBehaviour
         if (Input.GetKey(KeyCode.E)) rotInput += 1f;
         if (Mathf.Abs(rotInput) > 0.001f)
         {
-            transform.Rotate(transform.up, rotInput * rotationSpeed * Time.deltaTime, Space.World);
+            Quaternion q = Quaternion.AngleAxis(rotInput * rotationSpeed * Time.deltaTime, tnode.GetUp());
+            tnode.RotateWorld(q);
         }
 
         // --- Body float: sample ground under probes and adjust body height + leveling rotation ---
@@ -232,9 +242,9 @@ public class JumpController : MonoBehaviour
             {
                 var p = groundProbes[i];
                 if (p == null) continue;
-                Vector3 rayStart = p.position + transform.up * probeRayStartHeight;
+                Vector3 rayStart = p.GetWorldPosition() + tnode.GetUp() * probeRayStartHeight;
                 RaycastHit hit;
-                if (Physics.Raycast(rayStart, -transform.up, out hit, probeRayDistance + probeRayStartHeight, groundLayerMask))
+                if (Physics.Raycast(rayStart, -tnode.GetUp(), out hit, probeRayDistance + probeRayStartHeight, groundLayerMask))
                 {
                     avgPoint += hit.point;
                     avgNormal += hit.normal;
@@ -250,7 +260,7 @@ public class JumpController : MonoBehaviour
                 avgNormal.Normalize();
 
                 // Compute where the spider body should be along the surface normal
-                Vector3 currentPos = transform.position;
+                Vector3 currentPos = tnode.GetWorldPosition();
 
                 // Find how far the current body is from the average plane
                 float dist = Vector3.Dot(avgNormal, currentPos - avgPoint);
@@ -259,13 +269,13 @@ public class JumpController : MonoBehaviour
                 Vector3 desiredPos = currentPos - avgNormal * (dist - bodyHeightOffset);
 
                 // Smooth the movement along the normal direction
-                Vector3 smoothVelocity = Vector3.zero;  // make this persistent in your class!
-                transform.position = Vector3.SmoothDamp(
+                Vector3 newPos = Vector3.SmoothDamp(
                     currentPos,
                     desiredPos,
                     ref smoothVelocity,
                     bodyHeightSmoothTime
                 );
+                tnode.SetWorldPosition(newPos);
                 // end code piece
 
                 // First try: cast rays from each groundProbe toward its corresponding aimPoint and collect normals when they hit the Floor layer
@@ -281,14 +291,14 @@ public class JumpController : MonoBehaviour
                         var origin = groundProbes[i];
                         var aim = aimPoints[i];
                         if (origin == null || aim == null) continue;
-                        Vector3 dir = aim.position - origin.position;
+                        Vector3 dir = aim.GetWorldPosition() - origin.GetWorldPosition();
                         float d = dir.magnitude;
                         if (d < 0.001f) continue;
                         Vector3 dirNorm = dir / d;
                         RaycastHit hit;
                         float maxDist = d + probeRayDistance;
                         // use groundLayerMask for general surface detection
-                        if (Physics.Raycast(origin.position, dirNorm, out hit, maxDist, groundLayerMask))
+                        if (Physics.Raycast(origin.GetWorldPosition(), dirNorm, out hit, maxDist, groundLayerMask))
                         {
                             sumGeneralNormals += hit.normal;
                             sumGeneralPoints += hit.point;
@@ -312,13 +322,13 @@ public class JumpController : MonoBehaviour
                         // compute desired position on plane using average point projected along normal
                         Vector3 desiredOnPlane = avgGeneralPoint + normalToUse * bodyHeightOffset;
                         // directly set vertical to desiredOnPlane.y (will be smoothed below)
-                        Vector3 cur = transform.position;
+                        Vector3 cur = tnode.GetWorldPosition();
                         //transform.position = new Vector3(cur.x, Mathf.SmoothDamp(cur.y, desiredOnPlane.y, ref bodyVerticalVelocity, bodyHeightSmoothTime), cur.z);//////////////////////////
                     }
                     else if (useAnchorNormals)
                     {
                         // fallback: average anchor up vectors (if provided), otherwise keep avgNormal
-                        Transform[] source = (anchorNormals != null && anchorNormals.Length > 0) ? anchorNormals : groundProbes;
+                        TNode[] source = (anchorNormals != null && anchorNormals.Length > 0) ? anchorNormals : groundProbes;
                         if (source != null && source.Length > 0)
                         {
                             Vector3 sumN = Vector3.zero;
@@ -326,7 +336,7 @@ public class JumpController : MonoBehaviour
                             for (int i = 0; i < source.Length; i++)
                             {
                                 if (source[i] == null) continue;
-                                sumN += source[i].up;
+                                sumN += source[i].GetUp();
                                 ncount++;
                             }
                             if (ncount > 0)
@@ -338,10 +348,11 @@ public class JumpController : MonoBehaviour
                 }
 
                 // compute leveling rotation preserving forward direction projected onto plane defined by normalToUse
-                Vector3 forwardProj = Vector3.ProjectOnPlane(transform.forward, normalToUse);
-                if (forwardProj.sqrMagnitude < 0.0001f) forwardProj = Vector3.ProjectOnPlane(transform.up, normalToUse);
+                Vector3 forwardProj = Vector3.ProjectOnPlane(tnode.GetForward(), normalToUse);
+                if (forwardProj.sqrMagnitude < 0.0001f) forwardProj = Vector3.ProjectOnPlane(tnode.GetUp(), normalToUse);
                 Quaternion targetRot = Quaternion.LookRotation(forwardProj.normalized, normalToUse);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, 1f - Mathf.Exp(-bodyRotationSmoothSpeed * Time.deltaTime));
+                Quaternion newRot = Quaternion.Slerp(tnode.GetRotation(), targetRot, 1f - Mathf.Exp(-bodyRotationSmoothSpeed * Time.deltaTime));
+                //tnode.SetRotation(newRot);
             }
         }
 
@@ -351,8 +362,9 @@ public class JumpController : MonoBehaviour
             for (int i = 0; i < aimPoints.Length; i++)
             {
                 if (aimPoints[i] == null) continue;
-                Vector3 desiredWorld = transform.TransformPoint(aimLocalOffsets[i]);
-                aimPoints[i].position = Vector3.SmoothDamp(aimPoints[i].position, desiredWorld, ref aimVelocities[i], aimPointSmoothTime);
+                Vector3 desiredWorld = tnode.TransformPoint(aimLocalOffsets[i]);
+                Vector3 pos = Vector3.SmoothDamp(aimPoints[i].GetWorldPosition(), desiredWorld, ref aimVelocities[i], aimPointSmoothTime);
+                aimPoints[i].SetWorldPosition(pos); 
             }
         }
     }
@@ -370,7 +382,7 @@ public class JumpController : MonoBehaviour
         for (int i = 0; i < aimPoints.Length; i++)
         {
             if (aimPoints[i] == null) continue;
-            aimLocalOffsets[i] = transform.InverseTransformPoint(aimPoints[i].position);
+            aimLocalOffsets[i] = tnode.InverseTransformPoint(aimPoints[i].GetWorldPosition());
             aimVelocities[i] = Vector3.zero;
         }
         Debug.Log($"Captured {aimPoints.Length} aim offsets.");

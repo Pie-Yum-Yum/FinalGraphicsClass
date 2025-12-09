@@ -6,6 +6,7 @@ public class TNodeTest : MonoBehaviour
     
     void Update()
     {
-        node1.LookAt(node2.GetWorldPosition());
+        Quaternion q = Quaternion.AngleAxis(100f * Time.deltaTime, node1.GetUp());
+        node1.RotateWorld(q);
     }
 }

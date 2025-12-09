@@ -5,7 +5,7 @@ using UnityEngine.SocialPlatforms;
 public class TNode : MonoBehaviour
 {
     public TNode parent;
-    Quaternion localR;
+    Quaternion localR = Quaternion.identity;
 
     [SerializeField] Vector3 localT, localS =  Vector3.one;
     [SerializeField] BoxCollider col;
@@ -16,6 +16,7 @@ public class TNode : MonoBehaviour
 
         if(GetComponent<Renderer>())
         {
+            GetComponent<Renderer>().bounds = new Bounds(Vector3.zero, Vector3.one * 1000f);
             GetComponent<Renderer>().material.SetMatrix("MyTRSMatrix", GetWorldMatrix());
         }
     }
@@ -59,14 +60,22 @@ public class TNode : MonoBehaviour
 
     public Vector3 GetWorldPosition()
     {
-        Matrix4x4 finalM = GetWorldMatrix();
-        return finalM.GetColumn(3);
+        if (parent != null)
+            return parent.GetWorldMatrix().MultiplyPoint3x4(localT);
+        return localT;
     }
 
-    public void SetWorldPosition(Vector3 worldPosition)
+
+    public void SetWorldPosition(Vector3 worldPos)
     {
-        Vector3 current = GetWorldPosition();
-        Translate(worldPosition - current);
+        if (parent != null)
+        {
+            localT = parent.GetWorldMatrix().inverse.MultiplyPoint3x4(worldPos);
+        }
+        else
+        {
+            localT = worldPos;
+        }
     }
 
     public void Translate(Vector3 translation)
@@ -78,9 +87,15 @@ public class TNode : MonoBehaviour
 
     public void SetRotation(Quaternion q)
     {
-        localR = q;
+        if (float.IsNaN(q.x) || float.IsNaN(q.y) || float.IsNaN(q.z) || float.IsNaN(q.w))
+        {
+            Debug.Log("NaN");
+            return;
+        }
 
+        localR = q;
     }
+
 
     public void RotateLocal(Quaternion q)
     {
@@ -94,21 +109,58 @@ public class TNode : MonoBehaviour
 
     public Quaternion GetRotation()
     {
-        return Quaternion.LookRotation(GetForward(), GetUp());
+        return parent != null ? parent.GetRotation() * localR : localR;
     }
 
     public void LookAt(Vector3 position)
+{
+    LookAt(position, Vector3.up);
+}
+
+    public void LookAt(Vector3 position, Vector3 up)
+{
+    Vector3 forward = position - GetWorldPosition();
+    if (forward.sqrMagnitude < 0.0000001f) return;
+
+    Quaternion worldRotation = Quaternion.LookRotation(forward, up);
+
+    if (parent != null)
     {
-        Vector3 forward = position - GetWorldPosition();
-        Quaternion q = Quaternion.LookRotation(forward, Vector3.up);
-        SetRotation(q);
+        // Convert world rotation to local rotation
+        Quaternion localRotation = Quaternion.Inverse(parent.GetRotation()) * worldRotation;
+        SetRotation(localRotation);
+    }
+    else
+    {
+        SetRotation(worldRotation);
+    }
+}
+
+
+    public Vector3 InverseTransformPoint(Vector3 point)
+    {
+        Matrix4x4 inverse = GetWorldMatrix().inverse;
+        return inverse.MultiplyPoint3x4(point);
     }
 
-    // LookAt with custom up vector (useful when 'up' is not global up)
-    public void LookAt(Vector3 position, Vector3 up)
+    public Vector3 TransformPoint(Vector3 point)
     {
-        Vector3 forward = position - GetWorldPosition();
-        Quaternion q = Quaternion.LookRotation(forward, up);
-        SetRotation(q);
+        Matrix4x4 mat = GetWorldMatrix();
+        return mat.MultiplyPoint3x4(point);
     }
+
+    public Vector3 TransformDirection(Vector3 direction)
+    {
+        return GetWorldMatrix().MultiplyVector(direction);
+    }
+
+    public Vector3 InverseTransformDirection(Vector3 direction)
+    {
+        return GetWorldMatrix().inverse.MultiplyVector(direction);
+    }
+
+    public Vector3 TransformVector(Vector3 vector)
+{
+    return GetWorldMatrix().MultiplyVector(vector);
+}
 }
